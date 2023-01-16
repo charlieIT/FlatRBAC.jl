@@ -96,10 +96,11 @@ Permission("admin", ["*"], ["create", "read", "update", "delete"], "CRUD Admin",
 #### `AbstractPermission - Type`
 
 A Permission is a subtype of `AbstractPermission`, which defines the following **interface methods**:
->`name(<:AbstractPermission)::String`
->`scope(<:AbstractPermission)::Scope`
->`actions(<:AbstractPermission)::Vector{String}`
->`resources(<:AbstractPermission)::Vector{String}`
+
+>`name(<:AbstractPermission)::String`<br/>
+>`scope(<:AbstractPermission)::Scope`<br/>
+>`actions(<:AbstractPermission)::Vector{String}`<br/>
+>`resources(<:AbstractPermission)::Vector{String}`<br/>
 > `hash(<:AbstractPermission)::UInt64`
 
 ### Scope 
@@ -132,9 +133,9 @@ This is the default scope and will, by default, only grant access to the None sc
 
 A `Scope` is a subtype of `AbstractScope`, which defines the following **interface methods**:
 
->`Base.string(::Type{<:Scope})::String`
->`Scope(::Val{:lowercasename})::Scope`
->`iswildcard(::Type{<:Scope})::Bool`
+>`Base.string(::Type{<:Scope})::String`<br/>
+>`Scope(::Val{:lowercasename})::Scope`<br/>
+>`iswildcard(::Type{<:Scope})::Bool`<br/>
 
 The package provides default behaviour for `AbstractScope` subtypes
 ```julia
@@ -197,9 +198,9 @@ revoke!(example, Permission("read_all:*:read"))
 #### `AbstractRole- Type`
 
 A Role is a subtype of `AbstractRole`, which defines the following interface methods:
->`name(<:AbstractRole)::String`
->`description(<:AbstractRole)::String`
->`permissions(<:AbstractRole)::Vector{<:AbstractPermission}`
+>`name(<:AbstractRole)::String`<br/>
+>`description(<:AbstractRole)::String`<br/>
+>`permissions(<:AbstractRole)::Vector{<:AbstractPermission}`<br/>
 > `hash(<:AbstractRole)::UInt64`
 
 ### Subject
@@ -210,10 +211,10 @@ An automated agent, person or any relevant third party for which authorisation s
 #### `AbstractSubject - Type`
 
 A Subject is a subtype of `AbstractSubject`, which defines the following **interface methods**:
->`id(<:AbstractSubject)::String`
->`name(<:AbstractSubject)::String`
->`roles(<:AbstractSubject)::Vector{<:AbstractRole}`
->`hash(<:AbstractSubject)::UInt64`
+>`id(<:AbstractSubject)::String`<br/>
+>`name(<:AbstractSubject)::String`<br/>
+>`roles(<:AbstractSubject)::Vector{<:AbstractRole}`<br/>
+>`hash(<:AbstractSubject)::UInt64`<br/>
 
 ### Authorisation
 --------------------
@@ -227,6 +228,7 @@ However, when authorising, you can specify whether authorisation should only be 
 #### Granting and checking for permissions 
 
 When granting a *compound* permission,  access is granted access to all specified resources and specified actions, i.e., **AND** operator. 
+
 Example: `≈ Permission(":projects,api,database:create,read,update")` will allow access to projects, api and database and enable create, read and update actions over each resource.
 
 When checking for authorisation, the same logic applies:
