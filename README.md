@@ -4,7 +4,7 @@
 
 # FlatRBAC
 
-FlatRBAC provides a julia implementation for the [first level of the NIST model for role based access control](https://www.nist.gov/publications/nist-model-role-based-access-control-towards-unified-standard).
+FlatRBAC provides a Julia implementation for the [first level of the NIST model for role based access control](https://www.nist.gov/publications/nist-model-role-based-access-control-towards-unified-standard).
 
 The package _embodies the essential aspects of RBAC_, as described in the model:
 
@@ -96,11 +96,11 @@ Permission("admin", ["*"], ["create", "read", "update", "delete"], "CRUD Admin",
 #### `AbstractPermission - Type`
 
 A Permission is a subtype of `AbstractPermission`, which defines the following **interface methods**:
->- `name(<:AbstractPermission)::String`
->- `scope(<:AbstractPermission)::Scope`
->- `actions(<:AbstractPermission)::Vector{String}`
->- `resources(<:AbstractPermission)::Vector{String}`
->-  `hash(<:AbstractPermission)::UInt64`
+>`name(<:AbstractPermission)::String`
+>`scope(<:AbstractPermission)::Scope`
+>`actions(<:AbstractPermission)::Vector{String}`
+>`resources(<:AbstractPermission)::Vector{String}`
+> `hash(<:AbstractPermission)::UInt64`
 
 ### Scope 
 ----------------
@@ -117,19 +117,24 @@ Permission("example", ["resource"], ["action"], "", FlatRBAC.None)
 The package provides implementation for three base scopes: 
 
 `FlatRBAC.All - Type`
+
 This scope acts as an `wildcard` and will, by default, grant access to any other scope
+
 `FlatRBAC.Own - Type`
+
 Own and Own subtypes are useful for dealing with **resource possession** and should be used in conjunction with ownership/possession checks in the application logic
+
 `FlatRBAC.None - Type`
+
 This is the default scope and will, by default, only grant access to the None scope
 
 #### `AbstractScope - Type`
 
 A `Scope` is a subtype of `AbstractScope`, which defines the following **interface methods**:
 
->- `Base.string(::Type{<:Scope})::String`
->- `Scope(::Val{:lowercasename})::Scope`
->- `iswildcard(::Type{<:Scope})::Bool`
+>`Base.string(::Type{<:Scope})::String`
+>`Scope(::Val{:lowercasename})::Scope`
+>`iswildcard(::Type{<:Scope})::Bool`
 
 The package provides default behaviour for `AbstractScope` subtypes
 ```julia
@@ -192,10 +197,10 @@ revoke!(example, Permission("read_all:*:read"))
 #### `AbstractRole- Type`
 
 A Role is a subtype of `AbstractRole`, which defines the following interface methods:
->- `name(<:AbstractRole)::String`
->- `description(<:AbstractRole)::String`
->- `permissions(<:AbstractRole)::Vector{<:AbstractPermission}`
->-  `hash(<:AbstractRole)::UInt64`
+>`name(<:AbstractRole)::String`
+>`description(<:AbstractRole)::String`
+>`permissions(<:AbstractRole)::Vector{<:AbstractPermission}`
+> `hash(<:AbstractRole)::UInt64`
 
 ### Subject
 --------------------
@@ -205,10 +210,10 @@ An automated agent, person or any relevant third party for which authorisation s
 #### `AbstractSubject - Type`
 
 A Subject is a subtype of `AbstractSubject`, which defines the following **interface methods**:
->- `id(<:AbstractSubject)::String`
->- `name(<:AbstractSubject)::String`
->- `roles(<:AbstractSubject)::Vector{<:AbstractRole}`
->-  `hash(<:AbstractSubject)::UInt64`
+>`id(<:AbstractSubject)::String`
+>`name(<:AbstractSubject)::String`
+>`roles(<:AbstractSubject)::Vector{<:AbstractRole}`
+>`hash(<:AbstractSubject)::UInt64`
 
 ### Authorisation
 --------------------
