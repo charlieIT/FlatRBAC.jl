@@ -13,19 +13,24 @@ Permission("example", ["resource"], ["action"], "", FlatRBAC.None)
 The package provides implementation for three base scopes: 
 
 `FlatRBAC.All - Type`
+
 This scope acts as an `wildcard` and will, by default, grant access to any other scope
+
 `FlatRBAC.Own - Type`
+
 Own and Own subtypes are useful for dealing with **resource possession** and should be used in conjunction with ownership/possession checks in the application logic
+
 `FlatRBAC.None - Type`
+
 This is the default scope and will, by default, only grant access to the None scope
 
 #### `AbstractScope - Type`
 
 A `Scope` is a subtype of `AbstractScope`, which defines the following **interface methods**:
 
->- `Base.string(::Type{<:Scope})::String`
->- `Scope(::Val{:lowercasename})::Scope`
->- `iswildcard(::Type{<:Scope})::Bool`
+>`Base.string(::Type{<:Scope})::String`<br/>
+>`Scope(::Val{:lowercasename})::Scope`<br/>
+>`iswildcard(::Type{<:Scope})::Bool`<br/>
 
 The package provides default behaviour for `AbstractScope` subtypes
 ```julia
