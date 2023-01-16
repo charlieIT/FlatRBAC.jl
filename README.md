@@ -227,11 +227,12 @@ However, when authorising, you can specify whether authorisation should only be 
 
 #### Granting and checking for permissions 
 
-When granting a *compound* permission,  access is granted access to all specified resources and specified actions, i.e., **AND** operator. 
+When granting a *compound* permission, access is granted to all specified resources and specified actions, i.e., **AND** operator. 
 
 Example: `≈ Permission(":projects,api,database:create,read,update")` will allow access to projects, api and database and enable create, read and update actions over each resource.
 
 When checking for authorisation, the same logic applies:
+
  `granted(subject, Permission(":projects,api,database:create,read,update")` means to check a subjects' permissions for exactly these resources and exactly these actions. For instance, permission is not granted if subject is able to access projects, api and database to create and read, but not update. 
 
 ```julia
