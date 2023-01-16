@@ -3,7 +3,6 @@ module FlatRBAC
     using DataFrames
     using InteractiveUtils
     using Printf
-    using Random
     using Revise
 
     export Permission, Role, Subject
