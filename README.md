@@ -157,7 +157,7 @@ false
 julia> isauthorised(Permission(":r:crud:app"), Permission(":r:crud:own"), scoped=true)
 true
 ```
-For performance considerations and notes, see also the [scope docs]("/examples/Scope.md")
+For performance considerations and notes, see also the [scope docs](/docs/Scope.md)
 
 ### Role
 -----------------------
