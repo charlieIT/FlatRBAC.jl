@@ -1,6 +1,6 @@
 name = "FlatRBAC"
 uuid = "8105d49c-dd64-42b3-9b59-da2596eb3c6b"
-authors = ["Luís Oliveira <luis.manuel.oliveira@pwc.com>"]
+authors = ["Luís Oliveira <https://github.com/charlieIT>"]
 title = "Flat Role Based Access Control in Julia"
 version = "0.1.0"
 
@@ -8,5 +8,4 @@ version = "0.1.0"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
