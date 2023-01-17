@@ -28,12 +28,10 @@ Base.@kwdef mutable struct Subject <:AbstractSubject
     roles::Vector{<:AbstractRole}   = AbstractRole[]
 end
 
-id(user::Subject) = user.id
-roles(user::Subject) = user.roles
-name(user::Subject) = user.name
-function permissions(user::Subject; shorthand::Bool=false)
-    return unique(vcat(permissions.(roles(user), shorthand=shorthand)...))
-end
+id(user::Subject)::String = Base.getfield(user, :id)
+name(user::Subject)::String = Base.getfield(user, :name)
+roles(user::Subject)::Vector{<:AbstractRole} = Base.getfield(user, :roles)
+permissions(user::Subject; kwargs...)::Vector{<:AbstractPermission} = unique(vcat(permissions.(roles(user); kwargs...)...))
 
 # //TODO Ignorar em caso de duplicado
 function grant!(user::Subject, role::AbstractRole)
