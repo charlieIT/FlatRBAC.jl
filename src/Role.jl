@@ -40,20 +40,17 @@ mutable struct Role <:AbstractRole
     function Role(; name::String, description::String="", permissions::Vector{<:AbstractPermission}=Permission[])
         return Role(name, description, permissions)
     end
-    function Role(name::String, permissions::P...; description::String="") where P<:AbstractPermission
-        return Role(name, description, Vector{P}([p for p in collect(permissions)]))
+    function Role(name::String, permissions...; description::String="")
+        return Role(name, description, Vector{AbstractPermission}([p for p in collect(permissions)]))
     end
 end
 
-name(role::Role)        = role.name
-description(role::Role) = role.description
-function permissions(role::Role; shorthand::Bool=false) 
-    if shorthand
-       return string.(role.permissions) 
-    end
-    return role.permissions
-end
-Base.isempty(role::AbstractRole) = isempty(permissions(role))
+name(role::Role)::String = Base.getfield(role, :name)
+description(role::Role)::String = Base.getfield(role, :description)
+permissions(role::Role)::Vector{<:AbstractPermission} = Base.getfield(role, :permissions)
+
+Base.isempty(role::AbstractRole)::Bool = isempty(permissions(role))
+grants(role::Role)::Grants = vcat(grants.(permissions(role))...)
 
 function Base.push!(role::Role, permission::P) where P<:AbstractPermission
     if !(permission in role)
@@ -104,27 +101,27 @@ function revoke!(base::Role, role::AbstractRole)
     return;
 end
 
-function Base.vect(roles::R...) where R<:AbstractRole
+function Base.vect(roles::R...)::Vector{R} where R<:AbstractRole
     names::Vector{String} = name.(collect(roles))
     @assert length(unique(roles)) == length(roles) throw(ArgumentError("Non-unique roles in set"))
     return Vector{R}([r for r in roles])
 end
 
-function Base.hash(role::Role)
+function Base.hash(role::Role)::UInt64
     return Base.hash(name(role)) + 
            Base.hash(sort([hash(p) for p in permissions(role)]))
 end
 
-function Base.isequal(a::R, b::R) where R<:AbstractRole
+function Base.isequal(a::R, b::R)::Bool where R<:AbstractRole
     return hash(a) == hash(b)
 end
 Base.:(==)(a::R, b::R) where R<:AbstractRole = Base.isequal(a, b)
 
-function Base.in(role::R, roles::Vector{<:R}) where R<:AbstractRole
+function Base.in(role::R, roles::Vector{<:R})::Bool where R<:AbstractRole
     return any(x->Base.isequal(role, x), roles)
 end
 
-function Base.in(permission::P, role::R) where {R<:AbstractRole, P<:AbstractPermission}
+function Base.in(permission::P, role::R)::Bool where {R<:AbstractRole, P<:AbstractPermission}
     return Base.in(permission, permissions(role))
 end
 
@@ -135,7 +132,7 @@ function Base.getindex(role::Role, permission::String)
     return permissions(role)[findfirst(x->name(x) == permission, permissions(role))]
 end
 
-function DataFrames.DataFrame(role::Role; flatten::Bool=false, kwargs...)
+function DataFrames.DataFrame(role::Role; kwargs...)::DataFrame
     permission_df = DataFrame(permissions(role); flatten=flatten, kwargs...)
     rename!(permission_df, [:name=>:permission, :description=>:permission_desc])
     return crossjoin(
@@ -145,6 +142,6 @@ function DataFrames.DataFrame(role::Role; flatten::Bool=false, kwargs...)
     )
 end
 
-function DataFrames.DataFrame(roles::Vector{Role}; kwargs...)
+function DataFrames.DataFrame(roles::Vector{Role}; kwargs...)::DataFrame
     return vcat(DataFrames.DataFrame.(roles; kwargs...)...)
 end
