@@ -25,8 +25,7 @@ FlatRBAC.resources(custom::CustomPermission) = string.(custom.resources)
 """
 abstract type AbstractPermission end
 
-const WILDCARD_TOKEN = "*"
-const ALL_PERMISSIONS = ANY_RESOURCE = ANY_ACTION = ["*"]
+const ALL_PERMISSIONS = ANY_RESOURCE = ANY_ACTION = [WILDCARD_TOKEN]
 const DIVIDER_TOKEN = ":"
 const SUBPART_DIVIDER_TOKEN = ","
 iswildcard(str::String) = str == WILDCARD_TOKEN
@@ -44,17 +43,20 @@ rent_book = Permission("ulysses:read,rent")
 ```
 """
 mutable struct Permission <:AbstractPermission
-    name::String        
-    resources::Vector{String}
-    actions::Vector{String}  
+    name::String
+    grants::Grants  
     description::String 
     scope::Type{<:Scope}      
 
+    
+    function Permission(name::String, grants::Grants, description::String, scope::Type{<:Scope})
+        return new(string(strip(name)), grants, description, scope)
+    end
     function Permission(name::String, resources::Vector{String}, actions::Vector{String}, description::String, scope::Type{<:Scope})
         resources = unique(string.(strip.(resources)))
         actions   = unique(string.(strip.(actions)))
 
-        return new(string(strip(name)), resources, actions, description, scope)
+        return Permission(name, grants(resources, actions), description, scope)
     end
 
     function Permission(;
@@ -68,6 +70,14 @@ mutable struct Permission <:AbstractPermission
     end
 end
 
+name(permission::Permission)             = Base.getfield(permission, :name)
+scope(permission::Permission)            = Base.getfield(permission, :scope)
+grants(permission::Permission)           = Base.getfield(permission, :grants)
+actions(permission::Permission)          = action.(grants(permission))
+resources(permission::Permission)        = resource.(grants(permission))
+description(permission::Permission)      = Base.getfield(permission, :description)
+grants(vp::Vector{<:AbstractPermission}) = vcat(grants.(vp)...)
+
 """
     Permission(str::String)
 
@@ -76,7 +86,7 @@ Build a Permission from a shorthand representation
 # Examples
 ```julia
 Permission("client:books:read,rent")
-# Permission("client", ["books"], ["read", "rent"], "", None)
+# client:(books:read)(books:rent):none
 
 Permission("client::read,rent") # any resource
 # Permission("client", ["*"], ["read", "rent"], "", None)
@@ -88,7 +98,7 @@ Permission("staff:books") # any action over books
 # Permission("staff", ["books"], ["*"], "", None)
 
 Permission("multi-rental:books,cds:rent")
-# Permission("multi-rental", ["books", "cds"], ["rent"], "", None)
+# multi-rental:(books:rent)(cds:rent):none
 
 Permission("author:*:update:own", "An author can update their own resources")
 # Permission("author", ["*"], ["update"], "An author can update their own resources", Own)
@@ -105,6 +115,9 @@ function Permission(str::String, description::String="")::Permission
     tmp = Permission(description=description) # acquire default values
     name, parts... = split(str, DIVIDER_TOKEN)
 
+    res  = ANY_RESOURCE
+    acts = ANY_ACTION
+
     if !isempty(name)
         tmp.name = name
     end
@@ -113,12 +126,12 @@ function Permission(str::String, description::String="")::Permission
     end
     resources = filter(x->!isempty(x), split(first(parts), SUBPART_DIVIDER_TOKEN))
     if !isempty(resources)
-        tmp.resources = string.(resources) # validated later at default constructor
+        res = string.(resources) # validated later at default constructor
     end
     if length(parts) > 1
         actions = filter(x->!isempty(x), split(parts[2], SUBPART_DIVIDER_TOKEN))
         if !isempty(actions)
-            tmp.actions = string.(actions) # validated later at default constructor
+            acts = string.(actions) # validated later at default constructor
         end
     end
     if length(parts) > 2 && !isempty(parts[3])
@@ -127,30 +140,22 @@ function Permission(str::String, description::String="")::Permission
     return Permission(
         name        = tmp.name,
         description = tmp.description,
-        resources   = tmp.resources,
-        actions     = tmp.actions,
+        resources   = res,
+        actions     = acts,
         scope       = tmp.scope
     )
 end
 
-macro perm(str)
-    p = string(str)
-    return :(Permission($p))
+function Base.string(p::Permission)
+    return @sprintf "%s:%s:%s:%s" name(p) join(unique(resources(p)), ",") join(unique(actions(p)), ",") lowercase(string(scope(p))) # name:operation:object, e.g., printer:print,query:inkjet
 end
-
-name(permission::Permission)        = permission.name
-scope(permission::Permission)       = permission.scope
-actions(permission::Permission)     = permission.actions
-resources(permission::Permission)   = permission.resources
-description(permission::Permission) = permission.description
+function Base.show(io::IO, p::Permission)
+    #displ = @sprintf "%s:%s:%s" name(p) join(string.(grants(p)), "") lowercase(string(scope(p)))
+    print(io, string(p))
+end
 
 function Base.vect(permissions::P...) where P<:AbstractPermission
-    #@assert length(unique(permissions)) == length(permissions) "Non-unique permissions in set"
     return Vector{P}([p for p in unique(permissions)])
-end
-
-function Base.string(p::Permission)
-    return @sprintf "%s:%s:%s:%s" name(p) join(resources(p), ",") join(actions(p), ",") lowercase(string(scope(p))) # name:operation:object, e.g., printer:print,query:inkjet
 end
 
 function Base.hash(permission::AbstractPermission)
@@ -160,7 +165,13 @@ function Base.hash(permission::AbstractPermission)
            Base.hash(scope(permission))
 end
 
-iswildcard(permission::AbstractPermission) = any(x->iswildcard(x), resources(permission)) && any(x->iswildcard(x), actions(permission))
+function iswildcard(permission::AbstractPermission; scoped::Bool=false)::Bool
+    check = any(x->iswildcard(x), resources(permission)) && any(x->iswildcard(x), actions(permission))
+    if check && scoped
+        return iswildcard(scope(permission))
+    end
+    return check
+end
 
 function Base.isequal(a::P, b::P; kwargs...) where P<:AbstractPermission
     return sort(actions(a))   == sort(actions(b))   &&
@@ -173,71 +184,19 @@ function Base.in(perm::AbstractPermission, perms::Vector{<:AbstractPermission})
     return any(x->Base.isequal(x, perm), perms)
 end
 
-"""
-    unwind(permission::P; flatten::Bool=false)
+function DataFrames.DataFrame(permission::Permission; kwargs...)
 
-Deconstruct permission based on permission resources. If `flatten == true`, deconstruct also based on actions
-
-Returns a set of permissions as Vector{Permission}
-
-# Examples
-```bash
-julia> FlatRBAC.unwind(Permission("user_read:api,db:read,list"))
-
-2-element Vector{Permission}:
- Permission("user_read", ["api"], ["read", "list"], "", FlatRBAC.None)
- Permission("user_read", ["db"], ["read", "list"], "", FlatRBAC.None)
-```
-```bash
-julia> FlatRBAC.unwind(Permission("user_read:api,db:read,list"), flatten=true)
-
-4-element Vector{Permission}:
- Permission("user_read", ["api"], ["read"], "", FlatRBAC.None)
- Permission("user_read", ["api"], ["list"], "", FlatRBAC.None)
- Permission("user_read", ["db"],  ["read"], "", FlatRBAC.None)
- Permission("user_read", ["db"],  ["list"], "", FlatRBAC.None)
-```
-"""
-function unwind(permission::P; flatten::Bool=false)::Vector{Permission} where P<:AbstractPermission
-    out = Permission[]
-    if !flatten
-        unwind_data = @inbounds [(x, actions(permission)...) for x in resources(permission)]
-    else
-        unwind_data = @inbounds [(x, y) for x in resources(permission) for y in actions(permission)]
-    end
-    @inbounds for (resource, actions...) in unwind_data
-        push!(out, Permission(
-                name      = name(permission), 
-                resources = [resource], 
-                actions   = collect(actions), 
-                scope     = scope(permission))
-        )
-    end
-    return out
-end
-
-function unwind(perms::Vector{P}; kwargs...)::Vector{Permission} where P<:AbstractPermission
-    return Vector{Permission}([p for p in vcat(unwind.(perms; kwargs...)...)])
-end
-
-function DataFrames.DataFrame(permission::Permission; flatten::Bool=false, pretty::Bool=true, kwargs...)
-    if flatten 
-        return DataFrame(FlatRBAC.unwind(permission, flatten=true); pretty=pretty, kwargs...)
-    end
-    res = resources(permission)
-    act = actions(permission)
-    if pretty
-        res = join(res, ", ")
-        act = join(act, ", ")
-    end
-    return DataFrame(
-        name        = name(permission),
-        resources   = [res],
-        actions     = [act],
-        description = description(permission),
-        scope       = scope(permission),
-        shorthand   = Base.string(permission);
-        kwargs...)
+    out = crossjoin(
+        DataFrame(
+            name        = name(permission),
+            description = description(permission),
+            scope       = scope(permission),
+            shorthand   = Base.string(permission);
+            kwargs...),
+        DataFrame(grants(permission));
+        kwargs...
+    )
+    return select(out, :name, :resource, :action, :scope, :description, :shorthand)
 end
 
 function DataFrames.DataFrame(permissions::Vector{Permission}; kwargs...)
@@ -247,6 +206,7 @@ end
 function implies(this::String, that::String; kwargs...)
     return iswildcard(this) || this == that
 end
+
 function implies(this::Vector{String}, that::Vector{String}; kwargs...)
     if any(x->iswildcard(x), this)
         return true
@@ -272,69 +232,78 @@ implies(user_perm, Permission(":database:read,list,delete:own")) == false # user
 implies(user_perm, Permission(":database:read:all"), scoped=true) == false # user cannot read in all scope
 ```
 """
-function implies(this::A, that::P; scoped::Bool=false, kwargs...) where {A<:AbstractPermission, P<:AbstractPermission}
+function implies(this::A, that::P; scoped::Bool=true, kwargs...) where {A<:AbstractPermission, P<:AbstractPermission}
+    if scoped && iswildcard(this, scoped=scoped)
+        return true
+    end
+
     check = implies(resources(this), resources(that)) && implies(actions(this), actions(that))
     if scoped && check
         return implies(scope(this), scope(that))
     end
     return check
 end
-function implies(perms::Vector{<:AbstractPermission}, requirement::AbstractPermission; kwargs...)
+
+function implies(perms::Vector{<:AbstractPermission}, requirement::AbstractPermission; scoped::Bool=true, kwargs...)
     if isempty(perms)
         return false
     end
-    requirements = unwind(requirement, flatten=true)
-    coverage     = vcat(unwind.(perms, flatten=true)...)
+    if scoped && any(x->iswildcard(x, scoped=scoped), perms)
+        return true
+    end
+    perms = filter(x->!isempty(grants(x)), perms)
+
+    requirements::Grants = deepcopy(grants(requirement))
+    coverage = @inbounds [(g, scope(p)) for p in perms for g in grants(p)]
     
-    if isempty(coverage)
-        return false
-    end
-    return implies(DataFrame(coverage), DataFrame(requirements); kwargs...)
-end
-
-"""
-    _isauthorised(row::DataFrameRow, permission::DataFrameRow)::Bool
-
-Check whether `row` authorised `permission`
-
-Use only with flattened permissions (unwind at both resource and action level)
-"""
-function _isauthorised(row::DataFrameRow, permission::DataFrameRow; scoped::Bool=false, kwargs...)::Bool
-    check::Bool = implies(row.resources, permission.resources) && implies(row.actions, permission.actions)
-    if scoped && check
-        return implies(row.scope, permission.scope)
-    end   
-    return check
-end
-
-"""Use only with flattened permissions"""
-function implies(coverage::DataFrame, requirements::DataFrame; scoped::Bool=false, audit::Bool=false, kwargs...)
-    function force_flatten(df::DataFrame)
-        for col in [:resources, :actions]
-            if !(eltype(df[!, col]) <:String)
-                df = flatten(df, col)
-            end
+    @time for grant in grants(requirement)
+        match = findfirst(x->implies(first(x), grant), coverage)
+        check::Bool = !isnothing(match)
+        if check && scoped
+            check = implies(last(coverage[match]), scope(requirement))
         end
-        return df
-    end
-    requirements = force_flatten(requirements)
-    coverage     = force_flatten(coverage)
-    check::DataFrame = deepcopy(requirements[!, [:resources, :actions, :scope]])
-
-    for (i, row) in enumerate(eachrow(requirements))
-        if any(x->_isauthorised(x, row; scoped=scoped, kwargs...), eachrow(coverage))
-            deleteat!(check, 1)
+        if check
+            deleteat!(requirements, findall(x->hash(match) == hash(x), requirements))
         end
     end
-    if audit
-        remaining = filter(row->row.resources in check.resources && row.actions in check.actions, requirements)
-        println(remaining)
-    end
-    return isempty(check)
+
+    #@time implies(DataFrame(perms), DataFrame(requirement); kwargs...)
+    return isempty(requirements)
 end
 
-function Base.filter(perms::Vector{P}, requirement::AbstractPermission; scoped::Bool=false, kwargs...) where P<:AbstractPermission
+function Base.filter(perms::Vector{P}, requirement::AbstractPermission; scoped::Bool=true, kwargs...) where P<:AbstractPermission
     return Vector{P}([p for p in Base.filter(p->implies(p, requirement, scoped=scoped, kwargs...), perms)])
 end
+
+# """
+#     _isauthorised(row::DataFrameRow, permission::DataFrameRow)::Bool
+
+# Check whether `row` authorised `permission`
+
+# Use only with flattened permissions (unwind at both resource and action level)
+# """
+# function _isauthorised(row::DataFrameRow, permission::DataFrameRow; scoped::Bool=true, kwargs...)::Bool
+#     check::Bool = implies(row.resource, permission.resource) && implies(row.action, permission.action)
+#     if scoped && check
+#         return implies(row.scope, permission.scope)
+#     end   
+#     return check
+# end
+
+# """Use only with flattened permissions"""
+# function implies(coverage::DataFrame, requirements::DataFrame; scoped::Bool=true, audit::Bool=false, kwargs...)
+#     check::DataFrame = deepcopy(requirements[!, [:resource, :action, :scope]])
+
+#     for (i, row) in enumerate(eachrow(requirements))
+#         if any(x->_isauthorised(x, row; scoped=scoped, kwargs...), eachrow(coverage))
+#             deleteat!(check, 1)
+#         end
+#     end
+#     if audit
+#         remaining = filter(row->row.resources in check.resources && row.actions in check.actions, requirements)
+#         println(remaining)
+#     end
+#     return isempty(check)
+# end
 
 #= //END TODO =#
