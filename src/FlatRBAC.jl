@@ -8,12 +8,13 @@ module FlatRBAC
     export Permission, Role, Subject
     export extend!, grant!, revoke!
     export isauthorised, authorise
-    export actions, implies, permissions, resources, roles, scope
+    export actions, permissions, resources, roles, scope
     export iswildcard
 
     include("exceptions.jl")
     include("utils.jl")
     include("Scope.jl")
+    include("Grant.jl")
     include("Permission.jl")
     include("Role.jl")
     include("Subject.jl")
