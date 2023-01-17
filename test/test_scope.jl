@@ -1,6 +1,5 @@
 import FlatRBAC.Scope as Scope
 import FlatRBAC.iswildcard as iswildcard
-import FlatRBAC.unwind as unwind
 
 module ScopeTest
     using FlatRBAC
