@@ -30,7 +30,7 @@ The package is under active development and changes may occur.
 All are welcome, as well as feature requests and bug reports. Please open an issue or a PR.
 
 ## Table of Contents
-1. [Installation and usage](#example2)
+1. [Installation](#installation)
 2. [Basic usage example](#basic-example)
 3. [Concept overview](#concept-overview)<br/>
 	- [Permission](#permission)<br/>
@@ -59,30 +59,31 @@ third_party = Subject(id="3rdPartySystem")
 **Define permissions**
 ```julia
 read_database = Permission(name="read_db", resources=["database"], actions=["read", "list"])
-create_key    = Permission("create-key:api,keys:create")
+create_key    = Permission("create-key:api-key:create")
 ```
 **Create roles and grant permissions**
 ```julia
 third_party_role = Role(name="3rdPartyApi")
-grant!(third_party_role, read_database, create_key) 
-# Alternatively, third_party_role = Role(name="3rdPartyApi", permissions=[read_database, create_key])
+grant!(third_party_role, read_database, create_key)
+
+# Alternatively, 
+# third_party_role = Role(name="3rdPartyApi", permissions=[read_database, create_key])
 ```
 **Grant roles to a subject**
 ```julia
 grant!(third_party, third_party_role)
 ```
-**Check authorisation for a given permission** 
+**Check if a subject is authorised**
 ```julia
-isauthorised(third_party, read_database)  # true
-isauthorised(third_party, ":keys:create") # true
+isauthorised(third_party, ":database:read")   # true
+isauthorised(third_party, ":api-key:create")  # true
 isauthorised(third_party, ":database:delete") # false
 ```
 ## Concept overview <div id='concept-overview'/>
 
-### Permission
--------------------------------
+### [Permission](@ref)
 
-A `Permission` is a mechanism for authorisation, specifying `actions` a given `subject` can perform over system `resources`. 
+A `Permission` is a mechanism for authorisation, specifying `actions` a given `subject` can perform over `resources`. 
 
 Permissions may be defined in `shorthand` form as `<name>:<resources>:<actions>:<scope>`.
 ```bash
@@ -93,7 +94,7 @@ julia> shorthand = Permission("admin:*:create,read,update,delete:all", "CRUD Adm
 Permission("admin", ["*"], ["create", "read", "update", "delete"], "CRUD Admin", FlatRBAC.None)
 ```
 
-#### `AbstractPermission - Type`
+#### [AbstractPermission - Type](@ref)
 
 A Permission is a subtype of `AbstractPermission`, which defines the following **interface methods**:
 
@@ -103,8 +104,9 @@ A Permission is a subtype of `AbstractPermission`, which defines the following *
 >`resources(<:AbstractPermission)::Vector{String}`<br/>
 > `hash(<:AbstractPermission)::UInt64`
 
-### Scope 
-----------------
+------------------
+
+### [Scope](@ref) 
 
 Scopes allow binding of permissions to custom _domains_ and can also be used for possession checks.
 
@@ -129,15 +131,15 @@ Own and Own subtypes are useful for dealing with **resource possession** and sho
 
 This is the default scope and will, by default, only grant access to the None scope
 
-#### `AbstractScope - Type`
+#### [Scope - Type](@ref)
 
-A `Scope` is a subtype of `AbstractScope`, which defines the following **interface methods**:
+The `Scope` type defines the following **interface methods**:
 
 >`Base.string(::Type{<:Scope})::String`<br/>
 >`Scope(::Val{:lowercasename})::Scope`<br/>
 >`iswildcard(::Type{<:Scope})::Bool`<br/>
 
-The package provides default behaviour for `AbstractScope` subtypes
+The package provides default behaviour for `Scope` subtypes
 ```julia
 abstract type MyScope <:FlatRBAC.Scope end
 
@@ -149,91 +151,108 @@ scoped = Permission("example:resource:read:myscope")
 abstract type App <:MyScope end
 abstract type API <:MyScope end
 ```
-```jldoctest
-julia> isauthorised(Permission(":r:crud:myscope"), Permission(":r:crud:app"), scoped=true)
-true
-julia> isauthorised(Permission(":r:crud:app"), Permission(":r:crud:API"), scoped=true)
-false
-julia> isauthorised(Permission(":r:crud:app"), Permission(":r:crud:own"), scoped=true)
-true
+
+MyScope grants access to its subtypes
+```julia
+isauthorised(Permission(":resource:crud:myscope"), Permission(":resource:crud:app"), scoped=true) # true
+isauthorised(Permission(":resource:crud:myscope"), Permission(":resource:crud:api"), scoped=true) # true
+```
+App does not grant access to API
+```julia
+isauthorised(Permission(":resource:crud:app"), Permission(":resource:crud:api"), scoped=true) # false
+```
+Both App and API grant access to Own and additional possession checks should be performed at application level
+```julia
+isauthorised(Permission(":resource:crud:app"), Permission(":resource:crud:own"), scoped=true) # true
+isauthorised(Permission(":resource:crud:api"), Permission(":resource:crud:own"), scoped=true) # true
 ```
 For performance considerations and notes, see also the [scope docs](/docs/Scope.md)
 
-### Role
------------------------
+----------------
 
-`Roles` define an authority level or function within a context. These are usually defined in accordance with job competency, authority, and  responsibility or responsability. For the purpose of this package, roles are collection of permissions that can be assigned to `subjects`, allowing them to perform `actions` over `resources`.
+### [Role](@ref)
+
+`Roles` define an authority level or function within a context. These are usually defined in accordance with job competency, authority, and  responsibility or responsability. 
+
+In this package, roles are collection of permissions that can be assigned to `subjects`, allowing them to perform `actions` over `resources`.
 
 **Roles can extend other roles**
 ```julia
 permA = [Permission(":projects:read"), Permission(":documents:export")]
-A = Role(name="A", permissions=permA)
+RoleA = Role(name="A", permissions=permA)
 
-@assert !isauthorised(A, Permission(":documents:edit")) # false
+@assert !isauthorised(RoleA, Permission(":documents:edit")) # A does not grant edit privileges over documents
 
 permB = [Permission(":projects,documents:read,edit")]
-B = Role(name="B", permissions=permB)
+RoleB = Role(name="B", permissions=permB)
 
 permC = [Permission(":api:list")]
-C = Role(name="C", permissions=permC)
+RoleC = Role(name="C", permissions=permC)
 
-extend!(A, B, C) # Extend `A` with permissions from `B` and `C`
+extend!(RoleA, RoleB, RoleC) # Extend `A` with permissions from `B` and `C`
 
-@assert isauthorised(A, Permission(":documents:edit")) # now it is possible
+@assert isauthorised(RoleA, Permission(":documents:edit")) # now it is possible, as RoleB was granted this privilege
 ```
-**Both permissions and roles can be revoked from a `Role `**
+**Both permissions and roles can be revoked from a `Role`**
 ```julia
-revoke!(A, B) # Revoke permissions of `B` from `A`
+revoke!(RoleA, RoleB) # Revoke permissions of `B` from `A`
 @assert !isauthorised(A, Permission(":documents:edit")) # no longer possible
 ```
 ```julia
 example = Role(name="Example")
 grant!(example,  Permission("read_all:*:read"))
 # 1-element Vector{Permission}: Permission("read_all", ["*"], ["read"], "", FlatRBAC.None)
+
 revoke!(example, Permission("read_all:*:read"))
 # Permission[]
 ```
 **Note:** As of `v.0.1.0` revocation is only performed based on permission equality. In the future, revocation will ensure any permission from B that implies a permission from A is also revoked.
 
-#### `AbstractRole- Type`
+#### [AbstractRole - Type](@ref)
 
 A Role is a subtype of `AbstractRole`, which defines the following interface methods:
 >`name(<:AbstractRole)::String`<br/>
 >`description(<:AbstractRole)::String`<br/>
 >`permissions(<:AbstractRole)::Vector{<:AbstractPermission}`<br/>
 > `hash(<:AbstractRole)::UInt64`
-
-### Subject
 --------------------
+
+### [Subject](@ref)
 
 An automated agent, person or any relevant third party for which authorisation should be enforced.
 
-#### `AbstractSubject - Type`
+#### [AbstractSubject - Type](@ref)
 
 A Subject is a subtype of `AbstractSubject`, which defines the following **interface methods**:
+
 >`id(<:AbstractSubject)::String`<br/>
 >`name(<:AbstractSubject)::String`<br/>
 >`roles(<:AbstractSubject)::Vector{<:AbstractRole}`<br/>
 >`hash(<:AbstractSubject)::UInt64`<br/>
 
-### Authorisation
---------------------
+----------------------
+
+### [Authorisation](@ref)
 
 The process of verifying whether a given `subject` is allowed to access and perform specific `actions` over a `resource`. 
 
-In `FlatRBAC`, **subjects may exercise permissions of multiple roles**. Authorisation logic will default to this behaviour, i.e., `granted(user, permission) = granted(permissions(subject), permission)` (*pseudo-code*), regardless of the roles or specific permissions that will satisfy the condition.
+In `FlatRBAC`, **subjects may exercise permissions of multiple roles**. Authorisation logic will default to this behaviour, i.e., (*pseudo-code*) `granted(user, permission) = granted(permissions(subject), permission)`, regardless of the roles or specific permissions that will satisfy the condition.
 
-However, when authorising, you can specify whether authorisation should only be granted if `permission` exists within a single role, i.e, `granted(user, permission) = [granted(role, permission) for role in roles(subject)]` (*pseudo-code*). Use `singlerole=true` to trigger this behaviour.
+However, when authorising, you can specify whether authorisation should only be granted if `permission` exists within a single role, i.e, (*pseudo-code*) `granted(user, permission) = [granted(role, permission) for role in roles(subject)]`. Use `singlerole=true` to trigger this behaviour.
 
-#### Granting and checking for permissions 
+#### [Granting and checking for permissions](@ref)
 
-When granting a *compound* permission, access is granted to all specified resources and specified actions, i.e., **AND** operator. 
+When granting a permission, access is granted to all specified resources with specified actions, i.e., **AND** operator.
 
-Example: `≈ Permission(":projects,api,database:create,read,update")` will allow access to projects, api and database and enable create, read and update actions over each resource.
+*pseudo-code example*
+```julia
+grants(Permission(":api,database:create,read")) ≈ (("api", "create"), ("api", "read"), ("db", "create"), ("db", "read"))
+```
+This will enable access to both api and database resources, allowing read and create actions over each resource.
 
-When checking for authorisation, the same logic applies:
-
- `granted(subject, Permission(":projects,api,database:create,read,update")` means to check a subjects' permissions for exactly these resources and exactly these actions. For instance, permission is not granted if subject is able to access projects, api and database to create and read, but not update. 
+When checking for authorisation, the same logic applies:<br/>
+`granted(subject, Permission(":api,database:create,read,update")`
+means to check a subjects' permissions for exactly these resources and exactly these actions. For instance, permission is not granted if subject is able to access api and database to create and read, but not update. 
 
 ```julia
 coverage = Permission(":projects,api,database:create,read,update")
@@ -245,7 +264,7 @@ coverage = Permission(":projects,api,database:create,read,delete") # update acti
 requirement = Permission(":database:create,read,update") # checking exactly for (create,read and update) over a database
 isauthorised(coverage, requirement) # false
 ```
-**Recommendation is to be wary when using _compound_ permissions in authorisation checks.**
+**Recommendation is to be wary when using complex permissions in authorisation checks.**
 
 #### Usage API 
 
