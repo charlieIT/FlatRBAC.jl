@@ -389,10 +389,10 @@ end
 **Mockup resource handler**
 ```julia
 function handler(req::HTTP.Request)
-	uname = req.context[:subject].name
+    uname = req.context[:subject].name
     resource = req.context[:resource]
-
-	return HTTP.Response(200, "Welcome $(uname)! You can access $(resource)")
+    
+    return HTTP.Response(200, "Welcome $(uname)! You can access $(resource)")
 end
 ```
 **Setup the HTTP server**
