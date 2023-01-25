@@ -1,10 +1,6 @@
-
-
-
-
 # FlatRBAC
 
-FlatRBAC provides a Julia implementation for the [first level of the NIST model for role based access control](https://www.nist.gov/publications/nist-model-role-based-access-control-towards-unified-standard).
+FlatRBAC provides a Julia implementation for the [first level of the NIST model for role based access control](https://www.nist.gov/publications/nist-model-role-based-access-control-towards-unified-standard) and aims to ease the process of defining, enforcing and maintaining security policies.
 
 The package _embodies the essential aspects of RBAC_, as described in the model:
 
@@ -17,7 +13,7 @@ The package _embodies the essential aspects of RBAC_, as described in the model:
 and it also adds some **additional features**:
 
  - Multi-action, multi-resource permissions
- - Define and control access permissions on domains
+ - Define and exert access control on domains
 
 In the context of this package, neither active role restrictions, hierarchy, nor sessions are implemented.
 
@@ -31,24 +27,28 @@ All are welcome, as well as feature requests and bug reports. Please open an iss
 
 ## Table of Contents
 1. [Installation](#installation)
-2. [Basic usage example](#basic-example)
+2. [Usage example](#basic-example)
 3. [Concept overview](#concept-overview)<br/>
 	- [Permission](#permission)<br/>
 	- [Scope](#scope)<br/>
 	- [Role](#role)<br />
 	- [Subject](#subject)
 	- [Authorisation](#authorisation)
-4. [Advanced examples](#advanced)
+4. [Additional examples](#advanced)
 
 
 ## Installation
 
-The package is currently unregistered, but can be installed via Package Manager by [providing a URL to the repository](https://pkgdocs.julialang.org/v1/managing-packages/#Adding-unregistered-packages)
+The package can be installed via package manager
+```julia
+pkg> add FlatRBAC
+```
+It can also be installed by [providing a URL to the repository](https://pkgdocs.julialang.org/v1/managing-packages/#Adding-unregistered-packages)
 ```bash
 pkg> add https://github.com/charlieIT/flatrbac.jl
 ```
 
-## Basic usage example <div id='basic-example'/>
+## Usage example <div id='basic-example'/>
 ``` julia
 using FlatRBAC
 ```
@@ -59,7 +59,7 @@ third_party = Subject(id="3rdPartySystem")
 **Define permissions**
 ```julia
 read_database = Permission(name="read_db", resources=["database"], actions=["read", "list"])
-create_key    = Permission("create-key:api-key:create")
+create_key    = Permission("create-key:api-key:create") # `name:resources:actions`
 ```
 **Create roles and grant permissions**
 ```julia
@@ -94,21 +94,27 @@ julia> shorthand = Permission("admin:*:create,read,update,delete:all", "CRUD Adm
 Permission("admin", ["*"], ["create", "read", "update", "delete"], "CRUD Admin", FlatRBAC.None)
 ```
 
-#### [AbstractPermission - Type](@ref)
+Permissions default to wildcard values (`"*"`) for both `resources` and `actions`
+```julia
+julia> Permission()
 
-A Permission is a subtype of `AbstractPermission`, which defines the following **interface methods**:
-
->`name(<:AbstractPermission)::String`<br/>
->`scope(<:AbstractPermission)::Scope`<br/>
->`actions(<:AbstractPermission)::Vector{String}`<br/>
->`resources(<:AbstractPermission)::Vector{String}`<br/>
-> `hash(<:AbstractPermission)::UInt64`
+Permission(:*:*:none)
+```
+Permissions are always positive and grant all specified actions to each resource
+```julia
+example = Permission(":any:c,r,u,d")
+# example is granted (any:c), (any:r), (any:u), (any,d)
+for action in actions(example)
+  @assert isauthorised(example, Permission(":any:$(action)")) "Should not fail"
+end
+```
+See also [permission docs](/docs/Permission.md).
 
 ------------------
 
 ### [Scope](@ref) 
 
-Scopes allow binding of permissions to custom _domains_ and can also be used for possession checks.
+Scopes allow binding of permissions to custom _domain/tenants_ and can also be used for possession checks.
 
 Permissions default to scope `None`:
 ```bash
@@ -121,23 +127,15 @@ The package provides implementation for three base scopes:
 
 `FlatRBAC.All - Type`
 
-This scope acts as an `wildcard` and will, by default, grant access to any other scope
+This scope acts as an `wildcard` and will, by default, grant access to any other scope.
 
 `FlatRBAC.Own - Type`
 
-Own and Own subtypes are useful for dealing with **resource possession** and should be used in conjunction with ownership/possession checks in the application logic
+Own and Own subtypes are useful for dealing with **resource possession** and should be used in conjunction with ownership/possession checks in the application logic.
 
 `FlatRBAC.None - Type`
 
-This is the default scope and will, by default, only grant access to the None scope
-
-#### [Scope - Type](@ref)
-
-The `Scope` type defines the following **interface methods**:
-
->`Base.string(::Type{<:Scope})::String`<br/>
->`Scope(::Val{:lowercasename})::Scope`<br/>
->`iswildcard(::Type{<:Scope})::Bool`<br/>
+This is the default scope and will, by default, only grant access to the None scope.
 
 The package provides default behaviour for `Scope` subtypes
 ```julia
@@ -166,7 +164,7 @@ Both App and API grant access to Own and additional possession checks should be 
 isauthorised(Permission(":resource:crud:app"), Permission(":resource:crud:own"), scoped=true) # true
 isauthorised(Permission(":resource:crud:api"), Permission(":resource:crud:own"), scoped=true) # true
 ```
-For performance considerations and notes, see also the [scope docs](/docs/Scope.md)
+For additional notes and performance considerations, see also the [scope docs](/docs/Scope.md).
 
 ----------------
 
@@ -181,54 +179,60 @@ In this package, roles are collection of permissions that can be assigned to `su
 permA = [Permission(":projects:read"), Permission(":documents:export")]
 RoleA = Role(name="A", permissions=permA)
 
-@assert !isauthorised(RoleA, Permission(":documents:edit")) # A does not grant edit privileges over documents
+julia> permissions(RoleA)
+2-element Vector{Permission}:
+ Permission(:projects:read:none)
+ Permission(:documents:export:none)
 
+# A was not granted edit privileges over documents
+@assert !isauthorised(RoleA, Permission(":documents:edit"))
+```
+```julia
 permB = [Permission(":projects,documents:read,edit")]
 RoleB = Role(name="B", permissions=permB)
 
 permC = [Permission(":api:list")]
 RoleC = Role(name="C", permissions=permC)
 
-extend!(RoleA, RoleB, RoleC) # Extend `A` with permissions from `B` and `C`
+# Extend `A` with permissions from `B` and `C`
+julia> extend!(RoleA, RoleB, RoleC) 
+4-element Vector{Permission}:
+ Permission(:projects:read,edit:none)
+ Permission(:documents:export:none)
+ Permission(:documents:read,edit:none)
+ Permission(:api:list:none)
 
-@assert isauthorised(RoleA, Permission(":documents:edit")) # now it is possible, as RoleB was granted this privilege
+# now it is possible, as RoleA obtained this privilege from RoleB
+@assert isauthorised(RoleA, Permission(":documents:edit")) 
 ```
 **Both permissions and roles can be revoked from a `Role`**
 ```julia
-revoke!(RoleA, RoleB) # Revoke permissions of `B` from `A`
-@assert !isauthorised(A, Permission(":documents:edit")) # no longer possible
+# Revoke permissions of `B` from `A`
+revoke!(RoleA, RoleB)
+# no longer possible
+@assert !isauthorised(RoleA, Permission(":documents:edit")) # no longer possible
 ```
 ```julia
 example = Role(name="Example")
 grant!(example,  Permission("read_all:*:read"))
-# 1-element Vector{Permission}: Permission("read_all", ["*"], ["read"], "", FlatRBAC.None)
+# 1-element Vector{Permission}: Permission(read_all:*:read:none)
 
 revoke!(example, Permission("read_all:*:read"))
 # Permission[]
 ```
-**Note:** As of `v.0.1.0` revocation is only performed based on permission equality. In the future, revocation will ensure any permission from B that implies a permission from A is also revoked.
+**Note:** As of `v.0.1` revocation is performed based on permission equality. In the future, revocation will ensure any permission from B that implies a permission from A is also revoked.
 
-#### [AbstractRole - Type](@ref)
+See also [role docs](/docs/Roles.md).
 
-A Role is a subtype of `AbstractRole`, which defines the following interface methods:
->`name(<:AbstractRole)::String`<br/>
->`description(<:AbstractRole)::String`<br/>
->`permissions(<:AbstractRole)::Vector{<:AbstractPermission}`<br/>
-> `hash(<:AbstractRole)::UInt64`
 --------------------
 
 ### [Subject](@ref)
 
 An automated agent, person or any relevant third party for which authorisation should be enforced.
-
-#### [AbstractSubject - Type](@ref)
-
-A Subject is a subtype of `AbstractSubject`, which defines the following **interface methods**:
-
->`id(<:AbstractSubject)::String`<br/>
->`name(<:AbstractSubject)::String`<br/>
->`roles(<:AbstractSubject)::Vector{<:AbstractRole}`<br/>
->`hash(<:AbstractSubject)::UInt64`<br/>
+```julia
+role = Role(name="Example", permissions=[Permission()])
+sysadmin = Subject(id="sysadmin", name="System Admin", roles=[role])
+```
 
 ----------------------
 
@@ -240,20 +244,9 @@ In `FlatRBAC`, **subjects may exercise permissions of multiple roles**. Authoris
 
 However, when authorising, you can specify whether authorisation should only be granted if `permission` exists within a single role, i.e, (*pseudo-code*) `granted(user, permission) = [granted(role, permission) for role in roles(subject)]`. Use `singlerole=true` to trigger this behaviour.
 
-#### [Granting and checking for permissions](@ref)
+#### Examples
 
-When granting a permission, access is granted to all specified resources with specified actions, i.e., **AND** operator.
-
-*pseudo-code example*
-```julia
-grants(Permission(":api,database:create,read")) ≈ (("api", "create"), ("api", "read"), ("db", "create"), ("db", "read"))
-```
-This will enable access to both api and database resources, allowing read and create actions over each resource.
-
-When checking for authorisation, the same logic applies:<br/>
-`granted(subject, Permission(":api,database:create,read,update")`
-means to check a subjects' permissions for exactly these resources and exactly these actions. For instance, permission is not granted if subject is able to access api and database to create and read, but not update. 
-
+**Permission based authorisation checks**
 ```julia
 coverage = Permission(":projects,api,database:create,read,update")
 requirement = Permission(":database:create,read,update")
@@ -261,15 +254,195 @@ isauthorised(coverage, requirement) # true
 ```
 ```julia
 coverage = Permission(":projects,api,database:create,read,delete") # update action is removed
-requirement = Permission(":database:create,read,update") # checking exactly for (create,read and update) over a database
+# checking exactly for (create,read and update) on database
+requirement = Permission(":database:create,read,update") 
 isauthorised(coverage, requirement) # false
 ```
-**Recommendation is to be wary when using complex permissions in authorisation checks.**
+_Recommendation is to be wary when using complex permissions in authorisation checks._
+
+**Subject based authorisation checks**
+```julia
+store_perms = [
+	Permission("view-any:books,movies,music:view:all"),
+	Permission("rent-books:books:rent:all"),
+	Permission("update-own:books,movies,music:update:own"),
+	Permission("rent-any:*:rent:all"),
+	Permission("update-any:*:update:all"),
+	Permission("buy:*:buy,view:all")
+]
+	
+store_roles = [
+	# Authors can view everything and update their own resources
+	Role("author",   store_perms["update-own"]..., store_perms["view-any"]...),
+	# Customers can temporarily rent books, view and buy anything
+	Role("customer", store_perms["rent-books"]..., store_perms["buy"]...),
+	# Employees can rent and update anything
+	Role("employee", store_perms["rent-any"]...,   store_perms["update-any"]...)]
+```
+```julia
+john = Subject(id="John")
+grant!(john , store_roles["customer"]...) # John is a customer
+
+# Can rent and buy books
+@assert isauthorised(john, ":books:buy,rent")
+# Can view books, movies and music
+@assert isauthorised(john, ":books,movies,music:view")
+```
+Using  `single-role`
+```julia
+julia = Subject(id="Julia")
+# Employees can also be customers
+grant!(julia, store_roles["employee"]..., store_roles["customer"]...) 
+
+# Granted rent on any resource via employee role
+@assert isauthorised(julia, ":movies,music,files:rent", singlerole=true) # true
+# Buy and rent for music are not granted via the same role
+# Rent -> Employee role; Buy -> Customer role
+@assert !isauthorised(julia, ":music:buy,rent", singlerole=true)
+```
 
 #### Usage API 
 
-- `isauthorised(subject, permission; singlerole=false, scoped=false, kwargs...)::Bool`
+- `isauthorised(subject, permission; singlerole=false, scoped=true, kwargs...)::Bool`
 
-## Advanced usage<div id='advanced'/>
+## Additional examples <div id='advanced'/>
 
-**Under construction**
+See also [web examples](/examples/web).
+
+### Mini web application with authorisation middleware
+```julia
+using FlatRBAC
+using JSON3
+using HTTP
+using Random
+
+import HTTP.Handlers.cookie_middleware as CookieMiddleware
+```
+**Setup RBAC logic**
+```julia
+#= Setup RBAC Roles =#
+guest = Role("guest", Permission(":*:view:all"))
+
+#= Setup some subjects =#
+const users = [
+    Subject(id="anonymous"), # no roles
+    Subject(id="guest", roles=[guest])
+]
+```
+**Mockup authentication and session management**
+```julia
+#!Not actual production code!
+const COOKIE_NAME = "app"
+#= Mockup web session logic =#
+SESSIONS = Dict{String, HTTP.Cookies.Cookie}()
+
+"""Mockup login as Guest"""
+function MockupLogin(req::HTTP.Request)
+    cookie = HTTP.Cookies.Cookie(COOKIE_NAME, randstring(12))
+    SESSIONS["guest"] = cookie
+    # Respond with the cookie
+    return HTTP.Response(200, ["Set-Cookie"=>HTTP.stringify(cookie)])
+end
+```
+**Middleware to map incoming requests to an app user session**
+```julia
+#!Not actual production code!
+"""Check request cookies for matching session"""
+function SessionMiddleware(handler)
+  return function(req::HTTP.Request)
+    uname = "anonymous" # default to anonymous
+
+    cookiejar = HTTP.Handlers.cookies(req)
+    match = findfirst(x->x.name == COOKIE_NAME, cookiejar)
+    if !isnothing(match)
+        appcookie = cookiejar[match]
+        user = filter(kv->kv.second.value == appcookie.value, SESSIONS)
+        if isempty(user) # session open but unknown user
+            return HTTP.Response(401, "Unauthorized")
+        end
+        uname = first(user).first
+    end
+    # set user and pass along the request
+    req.context[:user] = users[findfirst(x->x.id == uname, users)]
+    return handler(req)
+  end
+end
+```
+**Middleware to authorise access to app resources**
+```julia
+function Authorisation(handler)
+    return function(req::HTTP.Request)
+        user = req.context[:user]
+        resource = string(req.context[:params]["resource"])
+        
+        # Check if user is granted view access to this resource
+        if !FlatRBAC.isauthorised(user, Permission(":$(resource):view"))
+            return HTTP.Response(401, "Unauthorized")
+        end
+
+        req.context[:subject]  = user
+        req.context[:resource] = string(resource)
+        return handler(req)
+    end
+end
+```
+**Mockup resource handler**
+```julia
+function handler(req::HTTP.Request)
+	uname = req.context[:subject].name
+    resource = req.context[:resource]
+
+	return HTTP.Response(200, "Welcome $(uname)! You can access $(resource)")
+end
+```
+**Setup the HTTP server**
+```julia
+router = HTTP.Router((x->HTTP.Response(404)), (x->HTTP.Response(405)))
+
+HTTP.register!(router, "GET",  "/api/{resource}", Authorisation(handler))
+HTTP.register!(router, "POST", "/login", MockupLogin)
+
+empty!(HTTP.COOKIEJAR)
+server_middleware = router |> CookieMiddleware |> SessionMiddleware
+server = HTTP.serve!(server_middleware, "0.0.0.0", 80)
+```
+**Check if it works**
+```julia
+# Anonymous cannot view book resources
+@info HTTP.get("http://localhost/api/books", status_exception=false)
+#=
+┌ Info: HTTP.Messages.Response:
+│ """
+│ HTTP/1.1 401 Unauthorized
+│ Transfer-Encoding: chunked
+│ 
+└ Unauthorized"""
+=#
+
+# Authenticate as guest
+@info HTTP.post("http://localhost/login", cookies=true, status_exception=false)
+#=
+┌ Info: HTTP.Messages.Response:
+│ """
+│ HTTP/1.1 200 OK
+│ Set-Cookie: app=<randstring>
+│ Transfer-Encoding: chunked
+│ 
+└ """
+=#
+
+# Guest can view books
+@info HTTP.get("http://localhost/api/books"; cookiejar = HTTP.COOKIEJAR, status_exception=false)
+#=
+┌ Info: HTTP.Messages.Response:
+│ """
+│ HTTP/1.1 200 OK
+│ Transfer-Encoding: chunked
+│ 
+└ Welcome guest! You can access books"""
+=#
+```
+```julia
+# Close the server
+HTTP.close(server)
+```
