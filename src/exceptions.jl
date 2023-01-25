@@ -3,12 +3,19 @@ struct NotImplemented <:Exception
     args::Tuple
 end
 
-abstract type PermissionException end
+abstract type PermissionException <:Exception end
 
-struct InvalidPermissionExpression <:Exception
+abstract type InvalidExpression <:Exception   end
+
+struct InvalidPermissionExpression <:InvalidExpression
     expression::String
 end
 Base.showerror(io::IO, e::InvalidPermissionExpression) = print(io, "InvalidPermissionExpression: $(e.expression)")
+
+struct InvalidGrantExpression <:InvalidExpression
+    expression::String
+end
+Base.showerror(io::IO, e::InvalidGrantExpression) = print(io, "InvalidGrantExpression: $(e.expression)")
 
 struct InvalidScope <:Exception
     scope::String
@@ -19,4 +26,3 @@ end
 
 
 abstract type Unauthorized <:Exception end
-
