@@ -17,16 +17,15 @@ abstract type AbstractRole end
 
 # Grating permissions 
 ```julia
-grant!(role, permission::Permission)
-grant!(role, anotherRole::Role)
-grant!(role, permission, role, ...)
+grant!(role, permissions::Permission...)
+grant!(role, roles::Role...)
 ```
 
-# Removing permissions
+# Removing permissions and roles
 ```julia
-revoke!(role, permission::Permission)
+revoke!(role, permissions::Permission...)
 
-revoke!(role, permission, role, ...)
+revoke!(role, roles::Role...)
 ```
 """
 mutable struct Role <:AbstractRole
@@ -45,15 +44,12 @@ mutable struct Role <:AbstractRole
     end
 end
 
-name(role::Role)        = role.name
-description(role::Role) = role.description
-function permissions(role::Role; shorthand::Bool=false) 
-    if shorthand
-       return string.(role.permissions) 
-    end
-    return role.permissions
-end
-Base.isempty(role::AbstractRole) = isempty(permissions(role))
+name(role::Role)::String = Base.getfield(role, :name)
+description(role::Role)::String = Base.getfield(role, :description)
+permissions(role::Role)::Vector{<:AbstractPermission} = Base.getfield(role, :permissions)
+
+grants(role::AbstractRole)::Grants = vcat(grants.(permissions(role))...)
+Base.isempty(role::AbstractRole)::Bool = isempty(permissions(role))
 
 function Base.push!(role::Role, permission::P) where P<:AbstractPermission
     if !(permission in role)
@@ -79,35 +75,37 @@ function grant!(base::Role, grants::String...)
 end
 
 function extend!(base::Role, role::AbstractRole)
-    [Base.push!(base, permission) for permission in permissions(role)]
+    [Base.push!(base, permission) for permission in permissions(role) if !isequal(base, role)]
     return permissions(base)
 end
 
 function extend!(base::Role, roles::AbstractRole...)
-    [extend!(base, role) for role in collect(roles)]
+    [extend!(base, role) for role in filter(x->!isequal(base, x), collect(roles))]
     return permissions(base)
 end
 
-function remove!(role::Role, permission::AbstractPermission)
-    return deleteat!(role.permissions, findall(x->x == permission, permissions(role)))
+function remove!(role::Role, permission::AbstractPermission; wildcards::Bool=true)
+    return deleteat!(role.permissions, findall(x->implies(x, permission), permissions(role)))
 end
 
 """Revoke `permission` from `role`"""
-revoke!(base::Role, permission::AbstractPermission) = remove!(base, permission)
+function revoke!(base::Role, permission::AbstractPermission; wildcards::Bool=true)
+    remove!(base, permission, wildcards=wildcards)
+end
 
 """Revoke set of `permissions` from `role`"""
-revoke!(base::Role, perms::AbstractPermission...) = [revoke!(base, x) for x in perms]
+function revoke!(base::Role, perms::AbstractPermission...; wildcards::Bool=true) 
+    [revoke!(base, x, wildcards=wildcards) for x in perms]
+end
 
 """Revoke from `base` all permissions from `role`"""
-function revoke!(base::Role, role::AbstractRole)
-    [revoke!(base, permission) for permission in permissions(role)]
+function revoke!(base::Role, role::AbstractRole; wildcards::Bool=true)
+    [revoke!(base, permission, wildcards=wildcards) for permission in permissions(role)]
     return;
 end
 
 function Base.vect(roles::R...) where R<:AbstractRole
-    names::Vector{String} = name.(collect(roles))
-    @assert length(unique(roles)) == length(roles) throw(ArgumentError("Non-unique roles in set"))
-    return Vector{R}([r for r in roles])
+    return Vector{R}([r for r in unique(roles)])
 end
 
 function Base.hash(role::Role)
@@ -134,9 +132,12 @@ end
 function Base.getindex(role::Role, permission::String)
     return permissions(role)[findfirst(x->name(x) == permission, permissions(role))]
 end
+function Base.getindex(vr::Vector{<:AbstractRole}, role_name::String)
+    return vr[findall(r->name(r) == role_name, vr)]
+end
 
-function DataFrames.DataFrame(role::Role; flatten::Bool=false, kwargs...)
-    permission_df = DataFrame(permissions(role); flatten=flatten, kwargs...)
+function DataFrames.DataFrame(role::Role; kwargs...)
+    permission_df = DataFrame(permissions(role); kwargs...)
     rename!(permission_df, [:name=>:permission, :description=>:permission_desc])
     return crossjoin(
         DataFrame(name = name(role), description = description(role)),
