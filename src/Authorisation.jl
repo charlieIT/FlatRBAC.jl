@@ -1,40 +1,29 @@
-function isauthorised(perms::Vector{P}, permission::AbstractPermission; scoped::Bool=false, kwargs...) ::Bool where P<:AbstractPermission
+function isauthorised(perms::Vector{P}, permission::AbstractPermission; scoped::Bool=true, kwargs...) ::Bool where P<:AbstractPermission
     if isempty(perms)
         return false
     end
-    if permission in perms #|| any(p->implies(p, permission, scoped=scoped), perms)
+    if permission in perms
         return true
     end
-
-    coverage = unwind(perms)
-    #= short-circuit checks in case there are wildcard permissions at the correct scope =#
-    wildcard_check = findall(p->iswildcard(p), coverage)
-    if !isempty(wildcard_check)
-        matches = coverage[wildcard_check]
-        if scoped
-            return any(x->implies(scope(x), scope(permission)), matches)
-        end
-        return true
-    end
-    return implies(coverage, permission; scoped=scoped, kwargs...)
+    return implies(perms, permission; scoped=scoped, kwargs...)
 end
-isauthorised(subject::AbstractPermission, permission::AbstractPermission; kwargs...) = isauthorised([subject], permission; kwargs...)
+isauthorised(subject::AbstractPermission, permission::AbstractPermission; kwargs...) = implies(subject, permission; kwargs...)
 
-function isauthorised(role::AbstractRole, permission::AbstractPermission; scoped::Bool=false, kwargs...)::Bool
+function isauthorised(role::AbstractRole, permission::AbstractPermission; scoped::Bool=true, kwargs...)::Bool
     return !isempty(role) && isauthorised(permissions(role), permission; scoped=scoped, kwargs...)      
 end
 
-function isauthorised(roles::Vector{<:AbstractRole}, permission::AbstractPermission; singlerole::Bool=false, scoped::Bool=false, kwargs...)::Bool
+function isauthorised(roles::Vector{<:AbstractRole}, permission::AbstractPermission; singlerole::Bool=false, scoped::Bool=true, kwargs...)::Bool
     if isempty(roles)
         return false
     end
     if singlerole
-        return any(role->isauthorised(role, permission; kwargs...), roles)
+        return any(role->isauthorised(role, permission; scoped=scoped, kwargs...), roles)
     end
-    return isauthorised(permissions.(roles)..., permission; kwargs...)
+    return isauthorised(vcat(permissions.(roles)...), permission; scoped=scoped, kwargs...)
 end
 
-function isauthorised(subject::AbstractSubject, permission::AbstractPermission; singlerole::Bool=false, scoped::Bool=false, kwargs...)::Bool
+function isauthorised(subject::AbstractSubject, permission::AbstractPermission; singlerole::Bool=false, scoped::Bool=true, kwargs...)::Bool
     return isauthorised(roles(subject), permission; singlerole=singlerole, scoped=scoped, kwargs...)
 end
 
