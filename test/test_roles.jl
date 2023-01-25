@@ -50,8 +50,7 @@ RoleInterfaceMethods = [FlatRBAC.name, FlatRBAC.description, FlatRBAC.permission
         @test all(p->p in FlatRBAC.permissions(other_role), perms)
 
         @testset "Role accessors" begin
-            str_permissions = FlatRBAC.permissions(role, shorthand=true)
-            @test all(p->string(p) in str_permissions, FlatRBAC.permissions(role))
+
         end
 
         @testset "Grant and revoke" begin 

@@ -10,7 +10,7 @@ function random_invalid_permission_str(length::Int=Random.rand(1:10))
     return join(
             shuffle!(
                 [Faker.random_element(
-                    (FlatRBAC.DIVIDER_TOKEN, FlatRBAC.SUBPART_DIVIDER_TOKEN)) 
+                    (FlatRBAC.DIVIDER_TOKEN, FlatRBAC.SEPARATOR_TOKEN)) 
                 for _ in 1:length])
             )
 end

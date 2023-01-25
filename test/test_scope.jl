@@ -1,6 +1,5 @@
 import FlatRBAC.Scope as Scope
 import FlatRBAC.iswildcard as iswildcard
-import FlatRBAC.unwind as unwind
 
 module ScopeTest
     using FlatRBAC
@@ -38,4 +37,3 @@ FlatRBAC.iswildcard(::Type{MyWildcard}) = true
         @test all(x->FlatRBAC.implies(MyWildcard, x), [A,B,C])
     end
 end
-
