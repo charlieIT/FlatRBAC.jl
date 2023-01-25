@@ -8,21 +8,29 @@ module FlatRBAC
     export Permission, Role, Subject
     export extend!, grant!, revoke!
     export isauthorised, authorise
-    export actions, implies, permissions, resources, roles, scope
+    export actions, name, permissions, resources, roles, scope
     export iswildcard
 
     include("exceptions.jl")
     include("utils.jl")
+    include("Grant.jl")
     include("Scope.jl")
     include("Permission.jl")
     include("Role.jl")
     include("Subject.jl")
     include("Authorisation.jl")
 
-    #= Documentation for methods =#
+    #= Method documentation =#
+    function grant!         end
+    function revoke!        end
+    """
+        iswildcard(str::String)
+        iswildcard(::Type{<:Scope})
+        iswildcard(permission::Permission)
+        iswildcard(grant::Grant)
+    """
     function iswildcard     end
     function implies        end
     function isauthorised   end
-    function authorise      end
 
 end
