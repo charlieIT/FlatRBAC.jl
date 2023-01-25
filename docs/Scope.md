@@ -1,6 +1,14 @@
 # Scope 
 
-# Performance considerations
+## [Scope - Type](@ref)
+
+The `Scope` type defines the following **interface methods**:
+
+>`Base.string(::Type{<:Scope})::String`<br/>
+>`Scope(::Val{:lowercasename})::Scope`<br/>
+>`iswildcard(::Type{<:Scope})::Bool`<br/>
+
+## Performance considerations
 
 Although the package provides default logic for out of the box definition and usage of custom scopes, these are not very performant.
 
