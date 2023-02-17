@@ -1,13 +1,23 @@
 import FlatRBAC.Scope as Scope
+import FlatRBAC.description
+import FlatRBAC.name
+import FlatRBAC.permissions
 
 RoleInterfaceMethods = [FlatRBAC.name, FlatRBAC.description, FlatRBAC.permissions, Base.hash]
-
 
 @testset "Roles" begin
 
     @testset "Role definition" begin
         test_role = Role(name=Faker.job(), description=Faker.text())
         @test isempty(test_role)
+
+        _perm = Permission(permission_str())
+        role = Role("example", _perm, Permission(permission_str()), description="This is a test role")
+        @test role.description == "This is a test role"
+        @test length(permissions(role)) == 2
+        @test _perm in permissions(role) &&  name(role) == "example"
+        _vr = [role]
+        @test first(_vr["example"]) == role
 
         test_perm = Permission(permission_str())
         test_role = Role(
