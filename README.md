@@ -27,20 +27,20 @@ All are welcome, as well as feature requests and bug reports. Please open an iss
 
 ## Table of Contents
 1. [Installation](#installation)
-2. [Usage example](#basic-example)
+2. [Usage example](#usage-example)
 3. [Concept overview](#concept-overview)<br/>
 	- [Permission](#permission)<br/>
 	- [Scope](#scope)<br/>
 	- [Role](#role)<br />
 	- [Subject](#subject)
 	- [Authorisation](#authorisation)
-4. [Additional examples](#advanced)
+4. [Additional examples](#additional-examples)
 
 
 ## Installation
 
 The package can be installed via package manager
-```julia
+```
 pkg> add FlatRBAC
 ```
 It can also be installed by [providing a URL to the repository](https://pkgdocs.julialang.org/v1/managing-packages/#Adding-unregistered-packages)
@@ -48,7 +48,7 @@ It can also be installed by [providing a URL to the repository](https://pkgdocs.
 pkg> add https://github.com/charlieIT/flatrbac.jl
 ```
 
-## Usage example <div id='basic-example'/>
+## Usage example
 ``` julia
 using FlatRBAC
 ```
@@ -67,7 +67,7 @@ third_party_role = Role(name="3rdPartyApi")
 grant!(third_party_role, read_database, create_key)
 
 # Alternatively, 
-# third_party_role = Role(name="3rdPartyApi", permissions=[read_database, create_key])
+third_party_role = Role(name="3rdPartyApi", permissions=[read_database, create_key])
 ```
 **Grant roles to a subject**
 ```julia
@@ -79,7 +79,7 @@ isauthorised(third_party, ":database:read")   # true
 isauthorised(third_party, ":api-key:create")  # true
 isauthorised(third_party, ":database:delete") # false
 ```
-## Concept overview <div id='concept-overview'/>
+## Concept overview
 
 ### [Permission](@ref)
 
@@ -127,15 +127,15 @@ The package provides implementation for three base scopes:
 
 `FlatRBAC.All - Type`
 
-This scope acts as an `wildcard` and will, by default, grant access to any other scope.
+- This scope acts as an `wildcard` and will, by default, grant access to any other scope.
 
 `FlatRBAC.Own - Type`
 
-Own and Own subtypes are useful for dealing with **resource possession** and should be used in conjunction with ownership/possession checks in the application logic.
+- Own and Own subtypes are useful for dealing with **resource possession** and should be used in conjunction with ownership/possession checks in the application logic.
 
 `FlatRBAC.None - Type`
 
-This is the default scope and will, by default, only grant access to the None scope.
+- This is the default scope and will, by default, only grant access to the None scope.
 
 The package provides default behaviour for `Scope` subtypes
 ```julia
@@ -220,7 +220,7 @@ grant!(example,  Permission("read_all:*:read"))
 revoke!(example, Permission("read_all:*:read"))
 # Permission[]
 ```
-**Note:** As of `v.0.1` revocation is performed based on permission equality. In the future, revocation will ensure any permission from B that implies a permission from A is also revoked.
+**Note:** As of `v.0.1` and `v0.2` revocation is performed based on permission equality. In the future, revocation will ensure any permission from B that implies a permission from A is also revoked.
 
 See also [role docs](/docs/Roles.md).
 
@@ -242,7 +242,7 @@ The process of verifying whether a given `subject` is allowed to access and perf
 
 In `FlatRBAC`, **subjects may exercise permissions of multiple roles**. Authorisation logic will default to this behaviour, i.e., (*pseudo-code*) `granted(user, permission) = granted(permissions(subject), permission)`, regardless of the roles or specific permissions that will satisfy the condition.
 
-However, when authorising, you can specify whether authorisation should only be granted if `permission` exists within a single role, i.e, (*pseudo-code*) `granted(user, permission) = [granted(role, permission) for role in roles(subject)]`. Use `singlerole=true` to trigger this behaviour.
+However, when authorising, you can specify whether authorisation should only be granted if `permission` is granted within a single role, i.e, (*pseudo-code*) `granted(user, permission) = any(x->granted(role, permission), roles(subject)`. Use `singlerole=true` to trigger this behaviour.
 
 #### Examples
 
@@ -305,7 +305,7 @@ grant!(julia, store_roles["employee"]..., store_roles["customer"]...)
 
 - `isauthorised(subject, permission; singlerole=false, scoped=true, kwargs...)::Bool`
 
-## Additional examples <div id='advanced'/>
+## Additional examples
 
 See also [web examples](/examples/web).
 
