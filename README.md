@@ -170,7 +170,7 @@ For additional notes and performance considerations, see also the [scope docs](/
 
 ### [Role](@ref)
 
-`Roles` define an authority level or function within a context. These are usually defined in accordance with job competency, authority, and  responsibility or responsability. 
+`Roles` define an authority level or function within a context. These are usually defined in accordance with job competency, authority or responsability. 
 
 In this package, roles are collection of permissions that can be assigned to `subjects`, allowing them to perform `actions` over `resources`.
 
